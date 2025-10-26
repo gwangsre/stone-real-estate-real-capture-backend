@@ -91,8 +91,8 @@ export async function createLeadFromPublicForm(form, reqMeta) {
   // On serverless (Vercel), we MUST await to avoid the platform freezing background tasks after response.
   const notify = async () => {
     const brand = process.env.BRAND_NAME || 'Stone Real Estate';
-    // Always notify this fixed admin email as requested
-    const adminEmail = 'pcpps2507@gmail.com';
+    // Get admin email from environment variable or use fallback
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.RESEND_OWNER_EMAIL || 'gwang.sre@gmail.com';
     const adminFrom = process.env.SENDER_EMAIL || adminEmail;
 
     const adminSubject = `New lead received: ${leadDoc.contact.first_name} ${leadDoc.contact.last_name} (${ref.id})`;
