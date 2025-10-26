@@ -1,0 +1,4 @@
+[api] running on :8080
+[0mPOST /api/v1/leads/public [33m400[0m 4.098 ms - 90[0m
+[0mPOST /api/v1/leads/public [32m201[0m 1605.918 ms - 60[0m
+[0mPOST /api/v1/leads/public [32m201[0m 1018.702 ms - 60[0m

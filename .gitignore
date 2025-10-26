@@ -1,0 +1,9 @@
+node_modules
+.env
+\.env.local
+firebase-key.json
+stone-real-estate-leads-firebase-adminsdk-fbsvc-248341b064.json
+.vercel
+mailer.debug.log
+server.out.log
+server.err.log
