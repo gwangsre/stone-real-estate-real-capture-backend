@@ -5,6 +5,74 @@ import { sendMail } from "../utils/mailer.js";
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
+// ===== HELPER: SEND DUPLICATE NOTIFICATION =====
+async function sendDuplicateNotification({ form, existingLeadId, sellingInterestBool, buyingInterestBool, score }) {
+  const brand = process.env.BRAND_NAME || 'Stone Real Estate';
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.RESEND_OWNER_EMAIL || 'gwang.sre@gmail.com';
+  const adminFrom = process.env.SENDER_EMAIL || adminEmail;
+
+  const adminSubject = `🔄 Duplicate lead submission: ${form.first_name} ${form.last_name} (Original: ${existingLeadId})`;
+  const adminText = `A duplicate lead submission was detected.\n\n` +
+    `⚠️ This is a DUPLICATE submission from the same person today.\n` +
+    `Original Lead ID: ${existingLeadId}\n\n` +
+    `Submitted Information:\n` +
+    `Name: ${form.first_name} ${form.last_name}\n` +
+    `Email: ${form.email}\n` +
+    `Phone: ${form.phone}\n` +
+    `Suburb: ${form.suburb}\n` +
+    `Timeframe: ${form.timeframe}\n` +
+    `Selling interest: ${sellingInterestBool}\n` +
+    `Buying interest: ${buyingInterestBool}\n` +
+    `Score: ${score}\n` +
+    `Brand: ${brand}\n\n` +
+    `The original lead can be found with ID: ${existingLeadId}\n` +
+    `No new lead was created to avoid duplicates.`;
+
+  const adminHtml = `
+    <div style="border-left: 4px solid #f59e0b; padding-left: 16px; margin: 16px 0;">
+      <h3 style="color: #f59e0b; margin: 0;">🔄 Duplicate Lead Submission</h3>
+      <p style="margin: 8px 0; color: #6b7280;">This is a duplicate submission from the same person today.</p>
+    </div>
+    
+    <p><strong>Original Lead ID:</strong> <span style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${existingLeadId}</span></p>
+    
+    <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin: 16px 0;">
+      <h4 style="margin: 0 0 12px 0; color: #374151;">Submitted Information:</h4>
+      <ul style="margin: 0; padding-left: 20px;">
+        <li><strong>Name:</strong> ${form.first_name} ${form.last_name}</li>
+        <li><strong>Email:</strong> ${form.email}</li>
+        <li><strong>Phone:</strong> ${form.phone}</li>
+        <li><strong>Suburb:</strong> ${form.suburb}</li>
+        <li><strong>Timeframe:</strong> ${form.timeframe}</li>
+        <li><strong>Selling interest:</strong> ${sellingInterestBool}</li>
+        <li><strong>Buying interest:</strong> ${buyingInterestBool}</li>
+        <li><strong>Score:</strong> ${score}</li>
+        <li><strong>Brand:</strong> ${brand}</li>
+      </ul>
+    </div>
+    
+    <p style="color: #6b7280; font-size: 14px;">
+      💡 <strong>Note:</strong> No new lead was created to avoid duplicates. 
+      You can find the original lead with ID: <strong>${existingLeadId}</strong>
+    </p>
+  `;
+
+  console.log('[mailer] sending duplicate lead notification', { to: adminEmail, originalLeadId: existingLeadId });
+  
+  try {
+    await sendMail({
+      to: adminEmail,
+      from: adminFrom,
+      replyTo: form.email || adminEmail,
+      subject: adminSubject,
+      text: adminText,
+      html: adminHtml,
+    });
+  } catch (err) {
+    console.warn('Error sending duplicate notification email:', err?.message || err);
+  }
+}
+
 // ===== PUBLIC FORM CREATE =====
 export async function createLeadFromPublicForm(form, reqMeta) {
   const now = new Date();
@@ -31,8 +99,23 @@ export async function createLeadFromPublicForm(form, reqMeta) {
   const dedupeKey = sha256(`${form.email.toLowerCase()}|${last4}|${now.toISOString().slice(0, 10)}`);
   const dedupeRef = db().collection("leads_dedupe").doc(dedupeKey);
   const existed = await dedupeRef.get();
+  let isDuplicate = false;
+  let existingLeadId = null;
+  
   if (existed.exists) {
     const { lead_id } = existed.data() || {};
+    isDuplicate = true;
+    existingLeadId = lead_id;
+    
+    // For duplicate submissions, send notification but don't create new lead
+    await sendDuplicateNotification({
+      form,
+      existingLeadId: lead_id,
+      sellingInterestBool,
+      buyingInterestBool,
+      score
+    });
+    
     return { reused: true, lead_id };
   }
 
@@ -95,7 +178,7 @@ export async function createLeadFromPublicForm(form, reqMeta) {
     const adminEmail = process.env.ADMIN_EMAIL || process.env.RESEND_OWNER_EMAIL || 'gwang.sre@gmail.com';
     const adminFrom = process.env.SENDER_EMAIL || adminEmail;
 
-    const adminSubject = `New lead received: ${leadDoc.contact.first_name} ${leadDoc.contact.last_name} (${ref.id})`;
+    const adminSubject = `✨ New lead received: ${leadDoc.contact.first_name} ${leadDoc.contact.last_name} (${ref.id})`;
     const adminText = `A new lead was submitted.\n\n` +
       `Lead ID: ${ref.id}\n` +
       `Name: ${leadDoc.contact.first_name} ${leadDoc.contact.last_name}\n` +
@@ -110,20 +193,30 @@ export async function createLeadFromPublicForm(form, reqMeta) {
       `View in Firestore with ID: ${ref.id}`;
 
     const adminHtml = `
-      <p>A new lead was submitted.</p>
-      <p><strong>Lead ID:</strong> ${ref.id}</p>
-      <ul>
-        <li><strong>Name:</strong> ${leadDoc.contact.first_name} ${leadDoc.contact.last_name}</li>
-        <li><strong>Email:</strong> ${leadDoc.contact.email}</li>
-        <li><strong>Phone:</strong> ${leadDoc.contact.phone}</li>
-        <li><strong>Suburb:</strong> ${leadDoc.contact.suburb}</li>
-        <li><strong>Timeframe:</strong> ${leadDoc.contact.timeframe}</li>
-        <li><strong>Selling interest:</strong> ${leadDoc.contact.selling_interest}</li>
-        <li><strong>Buying interest:</strong> ${leadDoc.contact.buying_interest}</li>
-        <li><strong>Score:</strong> ${leadDoc.contact.score}</li>
-        <li><strong>Brand:</strong> ${brand}</li>
-      </ul>
-      <p>View in Firestore with ID: <strong>${ref.id}</strong></p>
+      <div style="border-left: 4px solid #10b981; padding-left: 16px; margin: 16px 0;">
+        <h3 style="color: #10b981; margin: 0;">✨ New Lead Received</h3>
+        <p style="margin: 8px 0; color: #6b7280;">A fresh lead has been submitted through your website.</p>
+      </div>
+      
+      <p><strong>Lead ID:</strong> <span style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${ref.id}</span></p>
+      <div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
+        <h4 style="margin: 0 0 12px 0; color: #374151;">Lead Details:</h4>
+        <ul style="margin: 0; padding-left: 20px;">
+          <li><strong>Name:</strong> ${leadDoc.contact.first_name} ${leadDoc.contact.last_name}</li>
+          <li><strong>Email:</strong> ${leadDoc.contact.email}</li>
+          <li><strong>Phone:</strong> ${leadDoc.contact.phone}</li>
+          <li><strong>Suburb:</strong> ${leadDoc.contact.suburb}</li>
+          <li><strong>Timeframe:</strong> ${leadDoc.contact.timeframe}</li>
+          <li><strong>Selling interest:</strong> ${leadDoc.contact.selling_interest}</li>
+          <li><strong>Buying interest:</strong> ${leadDoc.contact.buying_interest}</li>
+          <li><strong>Score:</strong> ${leadDoc.contact.score}</li>
+          <li><strong>Brand:</strong> ${brand}</li>
+        </ul>
+      </div>
+      
+      <p style="color: #6b7280; font-size: 14px;">
+        📊 View in Firestore with ID: <strong>${ref.id}</strong>
+      </p>
     `;
 
     console.log('[mailer] about to send admin notification (only)', { to: adminEmail });
