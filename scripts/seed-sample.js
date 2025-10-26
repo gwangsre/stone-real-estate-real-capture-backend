@@ -107,8 +107,13 @@ async function run() {
       phone: "0466789123",
       preferred_contact: "both",
       suburb: "Asquith",
+      address: "123 Main Street, Asquith NSW 2077",
       timeframe: "1-3 months",
-      score: 82
+      description: "Looking for a 3-bedroom house near the train station with a garden for the kids to play. Budget up to $1.2M.",
+      selling_interest: true,
+      buying_interest: false,
+      score: 82,
+      category: "HOT"
     },
     status: {
       current: "contacted",

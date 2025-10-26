@@ -26,7 +26,9 @@ export const createPublicBody = Joi.object({
   phone: Joi.string().pattern(/^(?:\+61|0)4\d{8}$/).required(),
   preferred_contact: Joi.string().valid("email", "phone", "both").default("both"),
   suburb: Joi.string().valid(...ALLOWED_SUBURBS).required(),
+  address: Joi.string().max(200).allow("", null).optional(),
   timeframe: Joi.string().valid("1-3 months", "3-6 months", "6+ months", "not sure").required(),
+  description: Joi.string().max(1000).allow("", null).optional(),
   // selling interest (existing)
   interested: Joi.string().valid("yes", "no").required(),
 
@@ -54,7 +56,9 @@ const contactShape = Joi.object({
   phone: Joi.string().pattern(/^(?:\+61|0)4\d{8}$/),
   preferred_contact: Joi.string().valid("email", "phone", "both"),
   suburb: Joi.string().valid(...ALLOWED_SUBURBS),
+  address: Joi.string().max(200).allow("", null),
   timeframe: Joi.string().valid("1-3 months", "3-6 months", "6+ months", "not sure"),
+  description: Joi.string().max(1000).allow("", null),
   selling_interest: Joi.boolean(),
   buying_interest: Joi.boolean(),
   score: Joi.number().integer().min(0),

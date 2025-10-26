@@ -27,10 +27,11 @@ r.get(
     [Segments.QUERY]: Joi.object({
       status: Joi.string(),
       suburb: Joi.string(),
+      address: Joi.string(),
       category: Joi.string().valid("HOT","WARM","COLD"),
       limit: Joi.number().integer().min(1).max(100).default(20),
       offset: Joi.number().integer().min(0).default(0),
-      q: Joi.string().allow(""), // search basic
+      q: Joi.string().allow(""), // search basic (name, email, phone, description)
     }),
   }),
   asyncHandler(LeadsCtrl.listLeads)

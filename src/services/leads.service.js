@@ -20,7 +20,9 @@ async function sendDuplicateNotification({ form, existingLeadId, sellingInterest
     `Email: ${form.email}\n` +
     `Phone: ${form.phone}\n` +
     `Suburb: ${form.suburb}\n` +
+    `Address: ${form.address || 'Not provided'}\n` +
     `Timeframe: ${form.timeframe}\n` +
+    `Description: ${form.description || 'Not provided'}\n` +
     `Selling interest: ${sellingInterestBool}\n` +
     `Buying interest: ${buyingInterestBool}\n` +
     `Score: ${score}\n` +
@@ -43,7 +45,9 @@ async function sendDuplicateNotification({ form, existingLeadId, sellingInterest
         <li><strong>Email:</strong> ${form.email}</li>
         <li><strong>Phone:</strong> ${form.phone}</li>
         <li><strong>Suburb:</strong> ${form.suburb}</li>
+        <li><strong>Address:</strong> ${form.address || 'Not provided'}</li>
         <li><strong>Timeframe:</strong> ${form.timeframe}</li>
+        <li><strong>Description:</strong> ${form.description || 'Not provided'}</li>
         <li><strong>Selling interest:</strong> ${sellingInterestBool}</li>
         <li><strong>Buying interest:</strong> ${buyingInterestBool}</li>
         <li><strong>Score:</strong> ${score}</li>
@@ -130,7 +134,9 @@ export async function createLeadFromPublicForm(form, reqMeta) {
       phone: (form.phone || "").trim(),
       preferred_contact: form.preferred_contact || "both",
       suburb: form.suburb,
+      address: (form.address || "").trim(),
       timeframe: form.timeframe || "not sure",
+      description: (form.description || "").trim(),
       // NEW: store selling and buying interest as booleans for easy querying
       selling_interest: sellingInterestBool,
       buying_interest: buyingInterestBool,
@@ -185,7 +191,9 @@ export async function createLeadFromPublicForm(form, reqMeta) {
       `Email: ${leadDoc.contact.email}\n` +
       `Phone: ${leadDoc.contact.phone}\n` +
       `Suburb: ${leadDoc.contact.suburb}\n` +
+      `Address: ${leadDoc.contact.address || 'Not provided'}\n` +
       `Timeframe: ${leadDoc.contact.timeframe}\n` +
+      `Description: ${leadDoc.contact.description || 'Not provided'}\n` +
       `Selling interest: ${leadDoc.contact.selling_interest}\n` +
       `Buying interest: ${leadDoc.contact.buying_interest}\n` +
       `Score: ${leadDoc.contact.score}\n` +
@@ -206,11 +214,13 @@ export async function createLeadFromPublicForm(form, reqMeta) {
           <li><strong>Email:</strong> ${leadDoc.contact.email}</li>
           <li><strong>Phone:</strong> ${leadDoc.contact.phone}</li>
           <li><strong>Suburb:</strong> ${leadDoc.contact.suburb}</li>
+          <li><strong>Address:</strong> ${leadDoc.contact.address || 'Not provided'}</li>
           <li><strong>Timeframe:</strong> ${leadDoc.contact.timeframe}</li>
+          <li><strong>Description:</strong> ${leadDoc.contact.description || 'Not provided'}</li>
           <li><strong>Selling interest:</strong> ${leadDoc.contact.selling_interest}</li>
           <li><strong>Buying interest:</strong> ${leadDoc.contact.buying_interest}</li>
           <li><strong>Score:</strong> ${leadDoc.contact.score}</li>
-          <li><strong>Brand:</strong> ${brand}</li>
+          <li><strong>Brand:</strong> ${leadDoc.contact.brand || brand}</li>
         </ul>
       </div>
       
@@ -252,13 +262,34 @@ export async function createLeadFromPublicForm(form, reqMeta) {
 }
 
 // ===== LIST =====
-export async function listLeads({ status, suburb, limit = 20, offset = 0, q }) {
+export async function listLeads({ status, suburb, address, limit = 20, offset = 0, q }) {
   let ref = db().collection("leads");
   if (status) ref = ref.where("status.current", "==", status);
   if (suburb) ref = ref.where("contact.suburb", "==", suburb);
+  if (address) ref = ref.where("contact.address", ">=", address).where("contact.address", "<=", address + '\uf8ff');
+  
   ref = ref.orderBy("metadata.created_at", "desc").offset(offset).limit(limit);
   const snap = await ref.get();
-  const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  let items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  
+  // Client-side filtering for text search (q parameter)
+  if (q && q.trim()) {
+    const searchTerm = q.toLowerCase().trim();
+    items = items.filter(item => {
+      const contact = item.contact || {};
+      const searchableText = [
+        contact.first_name,
+        contact.last_name,
+        contact.email,
+        contact.phone,
+        contact.address,
+        contact.description,
+      ].join(' ').toLowerCase();
+      
+      return searchableText.includes(searchTerm);
+    });
+  }
+  
   return items;
 }
 
