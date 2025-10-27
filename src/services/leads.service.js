@@ -502,11 +502,20 @@ export async function updateLead(id, patch) {
     // Recalculate score & category if needed
     if (scoringRecalc) {
       try {
-        const scoring = computeScore({
+        const scoringInput = {
           interested: newContact.selling_interest ? 'yes' : 'no',
           buying: newContact.buying_interest ? 'yes' : 'no',
           timeframe: newContact.timeframe,
+        };
+        console.log(`🔍 UpdateLead - Scoring input:`, scoringInput);
+        console.log(`🔍 UpdateLead - Contact values:`, {
+          selling_interest: newContact.selling_interest,
+          buying_interest: newContact.buying_interest,
+          timeframe: newContact.timeframe
         });
+        
+        const scoring = computeScore(scoringInput);
+        console.log(`🔍 UpdateLead - Scoring breakdown:`, scoring.factors);
         console.log(`🔍 UpdateLead - New scoring result:`, { 
           total_score: scoring.total_score, 
           category: scoring.category 
