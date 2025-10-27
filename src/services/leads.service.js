@@ -39,22 +39,30 @@ async function updateExistingLead({ existingLeadId, form, sellingInterestBool, b
   };
   
   // Add interaction to timeline
+  const interactionData = {
+    changes_detected: detectChanges(existingData.contact, updatedContact),
+    new_score: score,
+  };
+  
+  // Only add non-undefined values to avoid Firestore errors
+  if (reqMeta?.user_agent !== undefined) {
+    interactionData.user_agent = reqMeta.user_agent;
+  }
+  if (reqMeta?.ip !== undefined) {
+    interactionData.ip = reqMeta.ip;
+  }
+  
   const newInteraction = {
     type: "form_resubmission",
     message: `Lead resubmitted form with updated information`,
     timestamp: now,
-    data: {
-      changes_detected: detectChanges(existingData.contact, updatedContact),
-      new_score: score,
-      user_agent: reqMeta?.user_agent,
-      ip: reqMeta?.ip,
-    }
+    data: interactionData
   };
   
   const updatedTimeline = [...(existingData.timeline || []), newInteraction];
   
-  // Update the lead document
-  await leadRef.set({
+  // Clean undefined values before saving to Firestore
+  const updatePayload = cleanUndefinedValues({
     ...existingData,
     contact: updatedContact,
     timeline: updatedTimeline,
@@ -63,10 +71,28 @@ async function updateExistingLead({ existingLeadId, form, sellingInterestBool, b
       updated_at: now,
       last_submission: now
     }
-  }, { merge: true });
+  });
+  
+  // Update the lead document
+  await leadRef.set(updatePayload, { merge: true });
   
   console.log(`✅ Successfully updated lead ${existingLeadId}`);
   return { id: existingLeadId, ...existingData, contact: updatedContact, timeline: updatedTimeline };
+}
+
+// Helper function to clean undefined values from object (Firestore doesn't allow undefined)
+function cleanUndefinedValues(obj) {
+  const cleaned = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        cleaned[key] = cleanUndefinedValues(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
 }
 
 // Helper function to detect what changed
@@ -277,9 +303,12 @@ export async function createLeadFromPublicForm(form, reqMeta) {
     },
   };
 
+  // Clean undefined values before saving to Firestore
+  const cleanLeadDoc = cleanUndefinedValues(leadDoc);
+  
   // write using a generated doc (so id is known)
   const ref = db().collection("leads").doc();
-  await ref.set(leadDoc);
+  await ref.set(cleanLeadDoc);
   // set lead_id to the doc id and update the doc
   await ref.update({ lead_id: ref.id });
   await dedupeRef.set({ lead_id: ref.id, created_at: now });
