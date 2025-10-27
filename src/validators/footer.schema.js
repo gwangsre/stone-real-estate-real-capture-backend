@@ -7,7 +7,7 @@ export const createFooterBody = Joi.object({
 }).options({ stripUnknown: false });
 
 export const updateFooterBody = Joi.object({
-  message: Joi.string().max(1000),
+  message: Joi.string().max(1000).allow(""),
   active: Joi.boolean()
 }).min(1).options({ stripUnknown: false });
 

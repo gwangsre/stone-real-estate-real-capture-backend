@@ -8,6 +8,8 @@ export async function getFormHeader(req, res) {
 
 // PATCH /form-header - Update form header (admin endpoint)
 export async function updateFormHeader(req, res) {
+  console.log("🔍 Form Header Update Request:", req.body);
   const data = await FormHeaderSvc.updateFormHeader(req.body);
+  console.log("✅ Form Header Update Result:", data);
   return res.json({ success: true, data });
 }

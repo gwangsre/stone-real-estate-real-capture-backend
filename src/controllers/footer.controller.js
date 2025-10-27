@@ -8,6 +8,8 @@ export async function getFooter(req, res) {
 
 // PATCH /footer - Update footer (admin endpoint) 
 export async function updateFooter(req, res) {
+  console.log("🔍 Footer Update Request:", req.body);
   const data = await FooterSvc.updateFooter(req.body);
+  console.log("✅ Footer Update Result:", data);
   return res.json({ success: true, data });
 }

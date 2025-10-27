@@ -19,6 +19,8 @@ export async function getFooter() {
 }
 
 export async function updateFooter(messageData) {
+  console.log("🔍 Footer Service - Input data:", messageData);
+  
   const ref = db().collection('footer').doc(FOOTER_ID);
   const now = new Date();
   
@@ -28,14 +30,24 @@ export async function updateFooter(messageData) {
     updated_at: now
   };
   
+  console.log("🔍 Footer Service - Payload to save:", payload);
+  
   // Check if document exists
   const existing = await ref.get();
   if (!existing.exists) {
     // Create if not exists
     payload.created_at = now;
+    console.log("📝 Footer Service - Creating new document");
+  } else {
+    console.log("🔄 Footer Service - Updating existing document");
   }
   
   await ref.set(payload, { merge: true });
+  console.log("💾 Footer Service - Document saved successfully");
+  
   const updated = await ref.get();
-  return { id: updated.id, ...updated.data() };
+  const result = { id: updated.id, ...updated.data() };
+  console.log("✅ Footer Service - Final result:", result);
+  
+  return result;
 }
