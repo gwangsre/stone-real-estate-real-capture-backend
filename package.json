@@ -9,6 +9,7 @@
   "scripts": {
     "seed-sample": "node scripts/seed-sample.js",
     "seed-admins-messages": "node scripts/seed-admins-messages.js",
+    "seed-form-content": "node scripts/seed-form-content.js",
     "dump-db": "node scripts/dump-db.js",
     "set-admin-password": "node scripts/set-admin-password.js",
     "cleanup-admin-passwords": "node scripts/cleanup-admin-passwords.js",
