@@ -482,13 +482,11 @@ export async function updateLead(id, patch) {
     let scoringRecalc = false;
     if (patch.contact) {
       newContact = { ...newContact, ...patch.contact };
-      // Detect if scoring inputs changed
-      const scoringFields = ['timeframe','selling_interest','buying_interest'];
-      const changedScoringFields = scoringFields.filter(k => Object.prototype.hasOwnProperty.call(patch.contact, k));
-      if (changedScoringFields.length > 0) {
-        console.log(`🔍 UpdateLead - Scoring fields changed:`, changedScoringFields);
-        scoringRecalc = true;
-      }
+      // Always recalculate score when contact is updated to ensure data consistency
+      // This handles cases where frontend might send different field combinations
+      console.log(`🔍 UpdateLead - Contact updated, will recalculate score`);
+      console.log(`🔍 UpdateLead - Patch contact fields:`, Object.keys(patch.contact));
+      scoringRecalc = true;
     }
     // Recalculate score & category if needed
     if (scoringRecalc) {
@@ -504,6 +502,10 @@ export async function updateLead(id, patch) {
         });
         newContact.score = scoring.total_score;
         newContact.category = scoring.category;
+        console.log(`🔍 UpdateLead - Updated contact with score:`, { 
+          score: newContact.score, 
+          category: newContact.category 
+        });
         // Inject scoring metadata into metadata.custom_fields
         const existingMeta = data.metadata || {};
         const existingCF = existingMeta.custom_fields || {};
@@ -526,7 +528,11 @@ export async function updateLead(id, patch) {
       updates['metadata'] = { ...(data.metadata || {}), ...patch.metadata, updated_at: now };
     }
     if (patch.contact || scoringRecalc) {
-      updates['contact'] = newContact;
+      // Use field-level updates to ensure score is properly saved
+      Object.keys(newContact).forEach(key => {
+        updates[`contact.${key}`] = newContact[key];
+      });
+      console.log(`🔍 UpdateLead - Setting contact fields:`, Object.keys(newContact));
     }
     if (patch.status) {
       console.log('[DEBUG] Updating status:', patch.status);

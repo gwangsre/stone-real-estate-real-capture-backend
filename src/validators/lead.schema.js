@@ -61,7 +61,8 @@ const contactShape = Joi.object({
   description: Joi.string().max(1000).allow("", null),
   selling_interest: Joi.boolean(),
   buying_interest: Joi.boolean(),
-  score: Joi.number().integer().min(0),
+  score: Joi.number().min(0),
+  category: Joi.string().valid("HOT", "WARM", "COLD"),
 }).unknown(false);
 
 const statusUpdateShape = Joi.object({
