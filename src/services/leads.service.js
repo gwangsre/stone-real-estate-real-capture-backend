@@ -462,6 +462,8 @@ export async function updateLeadStatus(id, { status, notes, changed_by }) {
 
 // ===== GENERIC UPDATE (contact/status/metadata) =====
 export async function updateLead(id, patch) {
+  console.log(`🔍 UpdateLead - ID: ${id}, Patch:`, patch);
+  
   const ref = db().collection("leads").doc(id);
   const now = new Date();
   await db().runTransaction(async (tx) => {
@@ -472,6 +474,7 @@ export async function updateLead(id, patch) {
       throw e;
     }
     const data = snap.data();
+    console.log(`🔍 UpdateLead - Current contact:`, data.contact);
 
     // Build updates
     const updates = { "metadata.updated_at": now };
@@ -480,7 +483,10 @@ export async function updateLead(id, patch) {
     if (patch.contact) {
       newContact = { ...newContact, ...patch.contact };
       // Detect if scoring inputs changed
-      if (['timeframe','selling_interest','buying_interest'].some(k => Object.prototype.hasOwnProperty.call(patch.contact, k))) {
+      const scoringFields = ['timeframe','selling_interest','buying_interest'];
+      const changedScoringFields = scoringFields.filter(k => Object.prototype.hasOwnProperty.call(patch.contact, k));
+      if (changedScoringFields.length > 0) {
+        console.log(`🔍 UpdateLead - Scoring fields changed:`, changedScoringFields);
         scoringRecalc = true;
       }
     }
@@ -491,6 +497,10 @@ export async function updateLead(id, patch) {
           interested: newContact.selling_interest ? 'yes' : 'no',
           buying: newContact.buying_interest ? 'yes' : 'no',
           timeframe: newContact.timeframe,
+        });
+        console.log(`🔍 UpdateLead - New scoring result:`, { 
+          total_score: scoring.total_score, 
+          category: scoring.category 
         });
         newContact.score = scoring.total_score;
         newContact.category = scoring.category;
@@ -536,10 +546,19 @@ export async function updateLead(id, patch) {
       };
       console.log('[DEBUG] Status updates:', updates["status"]);
     }
-    tx.set(ref, updates, { merge: true });
+    
+    // Clean undefined values before saving (for Firestore compatibility)
+    const cleanedUpdates = cleanUndefinedValues(updates);
+    console.log(`🔍 UpdateLead - Final updates to save:`, updates);
+    console.log(`🔍 UpdateLead - Cleaned updates:`, cleanedUpdates);
+    tx.set(ref, cleanedUpdates, { merge: true });
   });
+  
   const updated = await ref.get();
-  return { id: updated.id, ...updated.data() };
+  const result = { id: updated.id, ...updated.data() };
+  console.log(`✅ UpdateLead - Final result contact:`, result.contact);
+  
+  return result;
 }
 
 // ===== SOFT DELETE =====
