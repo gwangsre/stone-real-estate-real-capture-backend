@@ -4,8 +4,13 @@ import { db } from "../config/firebase.js";
 const FOOTER_ID = 'main';
 
 export async function getFooter() {
+  console.log("🔍 Footer GET - Fetching document with ID:", FOOTER_ID);
+  
   const doc = await db().collection('footer').doc(FOOTER_ID).get();
+  console.log("📄 Footer GET - Document exists:", doc.exists);
+  
   if (!doc.exists) {
+    console.log("⚠️ Footer GET - Document not found, returning default");
     // Return default if not exists
     return {
       id: FOOTER_ID,
@@ -15,7 +20,14 @@ export async function getFooter() {
       updated_at: new Date()
     };
   }
-  return { id: doc.id, ...doc.data() };
+  
+  const data = doc.data();
+  console.log("✅ Footer GET - Document data:", data);
+  
+  const result = { id: doc.id, ...data };
+  console.log("📤 Footer GET - Returning result:", result);
+  
+  return result;
 }
 
 export async function updateFooter(messageData) {

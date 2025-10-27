@@ -19,10 +19,21 @@ function readServiceAccountFromFile() {
 let initialized = false;
 
 export function initFirebase() {
-  if (initialized) return admin;
+  if (initialized) {
+    console.log("🔥 Firebase already initialized");
+    return admin;
+  }
 
+  console.log("🔥 Initializing Firebase...");
   const { FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_KEY_FILE } = process.env;
   let { FIREBASE_PRIVATE_KEY } = process.env;
+  
+  console.log("🔥 Firebase config check:", {
+    hasProjectId: !!FIREBASE_PROJECT_ID,
+    hasClientEmail: !!FIREBASE_CLIENT_EMAIL,
+    hasKeyFile: !!FIREBASE_KEY_FILE,
+    hasPrivateKey: !!FIREBASE_PRIVATE_KEY
+  });
 
   // Prefer explicit service account file when provided
   if (FIREBASE_KEY_FILE) {
@@ -57,9 +68,15 @@ export function initFirebase() {
   }
 
   initialized = true;
+  console.log("✅ Firebase initialized successfully");
   return admin;
 }
 
 export function db() {
+  // Auto-initialize Firebase if not already done
+  if (!initialized) {
+    console.log("🔥 Firebase not initialized, initializing now...");
+    initFirebase();
+  }
   return admin.firestore();
 }

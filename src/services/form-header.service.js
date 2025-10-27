@@ -4,8 +4,13 @@ import { db } from "../config/firebase.js";
 const FORM_HEADER_ID = 'main';
 
 export async function getFormHeader() {
+  console.log("🔍 Form Header GET - Fetching document with ID:", FORM_HEADER_ID);
+  
   const doc = await db().collection('form_header').doc(FORM_HEADER_ID).get();
+  console.log("📄 Form Header GET - Document exists:", doc.exists);
+  
   if (!doc.exists) {
+    console.log("⚠️ Form Header GET - Document not found, returning default");
     // Return default if not exists
     return {
       id: FORM_HEADER_ID,
@@ -15,7 +20,14 @@ export async function getFormHeader() {
       updated_at: new Date()
     };
   }
-  return { id: doc.id, ...doc.data() };
+  
+  const data = doc.data();
+  console.log("✅ Form Header GET - Document data:", data);
+  
+  const result = { id: doc.id, ...data };
+  console.log("📤 Form Header GET - Returning result:", result);
+  
+  return result;
 }
 
 export async function updateFormHeader(messageData) {
