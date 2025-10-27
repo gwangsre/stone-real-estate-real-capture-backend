@@ -528,11 +528,9 @@ export async function updateLead(id, patch) {
       updates['metadata'] = { ...(data.metadata || {}), ...patch.metadata, updated_at: now };
     }
     if (patch.contact || scoringRecalc) {
-      // Use field-level updates to ensure score is properly saved
-      Object.keys(newContact).forEach(key => {
-        updates[`contact.${key}`] = newContact[key];
-      });
-      console.log(`🔍 UpdateLead - Setting contact fields:`, Object.keys(newContact));
+      // Set the entire contact object to maintain proper nested structure
+      updates['contact'] = newContact;
+      console.log(`🔍 UpdateLead - Setting entire contact object:`, Object.keys(newContact));
     }
     if (patch.status) {
       console.log('[DEBUG] Updating status:', patch.status);
