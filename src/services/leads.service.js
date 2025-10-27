@@ -5,17 +5,103 @@ import { sendMail } from "../utils/mailer.js";
 
 const sha256 = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
+// ===== HELPER: UPDATE EXISTING LEAD WITH NEW DATA =====
+async function updateExistingLead({ existingLeadId, form, sellingInterestBool, buyingInterestBool, score, scoring, reqMeta }) {
+  const now = new Date();
+  console.log(`🔄 Updating existing lead ${existingLeadId} with new submission data`);
+  
+  const leadRef = db().collection("leads").doc(existingLeadId);
+  const existingDoc = await leadRef.get();
+  
+  if (!existingDoc.exists) {
+    console.warn(`⚠️ Lead ${existingLeadId} not found for update`);
+    return null;
+  }
+  
+  const existingData = existingDoc.data();
+  
+  // Prepare updated contact info with latest submission data
+  const updatedContact = {
+    ...existingData.contact,
+    first_name: (form.first_name || "").trim() || existingData.contact.first_name,
+    last_name: (form.last_name || "").trim() || existingData.contact.last_name,
+    email: (form.email || "").toLowerCase() || existingData.contact.email,
+    phone: (form.phone || "").trim() || existingData.contact.phone,
+    preferred_contact: form.preferred_contact || existingData.contact.preferred_contact,
+    suburb: form.suburb || existingData.contact.suburb,
+    address: (form.address || "").trim() || existingData.contact.address,
+    timeframe: form.timeframe || existingData.contact.timeframe,
+    description: (form.description || "").trim() || existingData.contact.description,
+    selling_interest: sellingInterestBool,
+    buying_interest: buyingInterestBool,
+    score: Number.isFinite(score) ? score : (existingData.contact.score || 0),
+    category: scoring.category || existingData.contact.category,
+  };
+  
+  // Add interaction to timeline
+  const newInteraction = {
+    type: "form_resubmission",
+    message: `Lead resubmitted form with updated information`,
+    timestamp: now,
+    data: {
+      changes_detected: detectChanges(existingData.contact, updatedContact),
+      new_score: score,
+      user_agent: reqMeta?.user_agent,
+      ip: reqMeta?.ip,
+    }
+  };
+  
+  const updatedTimeline = [...(existingData.timeline || []), newInteraction];
+  
+  // Update the lead document
+  await leadRef.set({
+    ...existingData,
+    contact: updatedContact,
+    timeline: updatedTimeline,
+    metadata: {
+      ...existingData.metadata,
+      updated_at: now,
+      last_submission: now
+    }
+  }, { merge: true });
+  
+  console.log(`✅ Successfully updated lead ${existingLeadId}`);
+  return { id: existingLeadId, ...existingData, contact: updatedContact, timeline: updatedTimeline };
+}
+
+// Helper function to detect what changed
+function detectChanges(oldContact, newContact) {
+  const changes = [];
+  const fieldsToCheck = ['first_name', 'last_name', 'phone', 'suburb', 'address', 'timeframe', 'description', 'selling_interest', 'buying_interest', 'score'];
+  
+  fieldsToCheck.forEach(field => {
+    if (oldContact[field] !== newContact[field]) {
+      changes.push({
+        field,
+        old_value: oldContact[field],
+        new_value: newContact[field]
+      });
+    }
+  });
+  
+  return changes;
+}
+
 // ===== HELPER: SEND DUPLICATE NOTIFICATION =====
-async function sendDuplicateNotification({ form, existingLeadId, sellingInterestBool, buyingInterestBool, score }) {
+async function sendDuplicateNotification({ form, existingLeadId, sellingInterestBool, buyingInterestBool, score, updatedLead }) {
   const brand = process.env.BRAND_NAME || 'Stone Real Estate';
   const adminEmail = process.env.ADMIN_EMAIL || process.env.RESEND_OWNER_EMAIL || 'gwang.sre@gmail.com';
   const adminFrom = process.env.SENDER_EMAIL || adminEmail;
 
-  const adminSubject = `🔄 Duplicate lead submission: ${form.first_name} ${form.last_name} (Original: ${existingLeadId})`;
-  const adminText = `A duplicate lead submission was detected.\n\n` +
-    `⚠️ This is a DUPLICATE submission from the same person today.\n` +
-    `Original Lead ID: ${existingLeadId}\n\n` +
-    `Submitted Information:\n` +
+  const changes = updatedLead?.timeline?.slice(-1)[0]?.data?.changes_detected || [];
+  const hasChanges = changes.length > 0;
+  
+  const adminSubject = `🔄 Lead updated via resubmission: ${form.first_name} ${form.last_name} (ID: ${existingLeadId})`;
+  const adminText = `A lead resubmitted the form with ${hasChanges ? 'updated' : 'same'} information.\n\n` +
+    `✅ The existing lead has been UPDATED with the latest submission data.\n` +
+    `Lead ID: ${existingLeadId}\n\n` +
+    `${hasChanges ? 'Changes detected:\n' + changes.map(c => `- ${c.field}: "${c.old_value}" → "${c.new_value}"`).join('\n') + '\n\n' : ''}` +
+    `Current Information:\n` +
     `Name: ${form.first_name} ${form.last_name}\n` +
     `Email: ${form.email}\n` +
     `Phone: ${form.phone}\n` +
@@ -27,13 +113,13 @@ async function sendDuplicateNotification({ form, existingLeadId, sellingInterest
     `Buying interest: ${buyingInterestBool}\n` +
     `Score: ${score}\n` +
     `Brand: ${brand}\n\n` +
-    `The original lead can be found with ID: ${existingLeadId}\n` +
-    `No new lead was created to avoid duplicates.`;
+    `The lead data has been updated with this latest submission.`;
 
   const adminHtml = `
-    <div style="border-left: 4px solid #f59e0b; padding-left: 16px; margin: 16px 0;">
-      <h3 style="color: #f59e0b; margin: 0;">🔄 Duplicate Lead Submission</h3>
-      <p style="margin: 8px 0; color: #6b7280;">This is a duplicate submission from the same person today.</p>
+    <div style="border-left: 4px solid #10b981; padding-left: 16px; margin: 16px 0;">
+      <h3 style="color: #10b981; margin: 0;">🔄 Lead Updated via Resubmission</h3>
+      <p style="margin: 8px 0; color: #6b7280;">A lead resubmitted the form. The existing lead has been updated with the latest data.</p>
+      ${hasChanges ? `<p style="margin: 8px 0; color: #059669;"><strong>${changes.length} field(s) changed</strong></p>` : ''}
     </div>
     
     <p><strong>Original Lead ID:</strong> <span style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${existingLeadId}</span></p>
@@ -55,9 +141,17 @@ async function sendDuplicateNotification({ form, existingLeadId, sellingInterest
       </ul>
     </div>
     
+    ${hasChanges ? `
+    <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 12px; margin: 16px 0;">
+      <h4 style="color: #047857; margin: 0 0 8px 0;">📝 Changes Detected:</h4>
+      <ul style="margin: 0; padding-left: 20px; color: #065f46;">
+        ${changes.map(c => `<li><strong>${c.field}:</strong> "${c.old_value}" → "<strong>${c.new_value}</strong>"</li>`).join('')}
+      </ul>
+    </div>` : ''}
+    
     <p style="color: #6b7280; font-size: 14px;">
-      💡 <strong>Note:</strong> No new lead was created to avoid duplicates. 
-      You can find the original lead with ID: <strong>${existingLeadId}</strong>
+      ✅ <strong>Status:</strong> The existing lead has been updated with this latest submission data. 
+      Lead ID: <strong>${existingLeadId}</strong>
     </p>
   `;
 
@@ -111,16 +205,30 @@ export async function createLeadFromPublicForm(form, reqMeta) {
     isDuplicate = true;
     existingLeadId = lead_id;
     
-    // For duplicate submissions, send notification but don't create new lead
+    console.log(`🔄 Duplicate detected for lead ${lead_id}. Updating with new data...`);
+    
+    // Update existing lead with new submission data
+    const updatedLead = await updateExistingLead({
+      existingLeadId: lead_id,
+      form,
+      sellingInterestBool,
+      buyingInterestBool,
+      score,
+      scoring,
+      reqMeta
+    });
+    
+    // Send notification about the update
     await sendDuplicateNotification({
       form,
       existingLeadId: lead_id,
       sellingInterestBool,
       buyingInterestBool,
-      score
+      score,
+      updatedLead
     });
     
-    return { reused: true, lead_id };
+    return { reused: true, lead_id, updated: true, changes: updatedLead?.timeline?.slice(-1)[0]?.data?.changes_detected || [] };
   }
 
   // 3) build canonical lead doc that matches requested schema
