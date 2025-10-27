@@ -477,9 +477,11 @@ export async function updateLead(id, patch) {
     console.log(`🔍 UpdateLead - Current contact:`, data.contact);
 
     // Build updates
-    const updates = { "metadata.updated_at": now };
+    const updates = {};
     let newContact = data.contact || {};
     let scoringRecalc = false;
+    
+    // Handle contact updates
     if (patch.contact) {
       newContact = { ...newContact, ...patch.contact };
       // Always recalculate score when contact is updated to ensure data consistency
@@ -488,6 +490,15 @@ export async function updateLead(id, patch) {
       console.log(`🔍 UpdateLead - Patch contact fields:`, Object.keys(patch.contact));
       scoringRecalc = true;
     }
+    
+    // Handle metadata updates
+    const existingMeta = data.metadata || {};
+    const newMetadata = {
+      ...existingMeta,
+      ...(patch.metadata || {}),
+      updated_at: now,
+    };
+    
     // Recalculate score & category if needed
     if (scoringRecalc) {
       try {
@@ -506,27 +517,22 @@ export async function updateLead(id, patch) {
           score: newContact.score, 
           category: newContact.category 
         });
-        // Inject scoring metadata into metadata.custom_fields
-        const existingMeta = data.metadata || {};
+        
+        // Inject scoring metadata into custom_fields
         const existingCF = existingMeta.custom_fields || {};
-        updates['metadata'] = {
-          ...existingMeta,
-          ...(patch.metadata || {}),
-          updated_at: now,
-          custom_fields: {
-            ...existingCF,
-            ...(patch.metadata?.custom_fields || {}),
-            scoring_version: scoring.score_version,
-            scoring_factors: scoring.factors,
-          },
+        newMetadata.custom_fields = {
+          ...existingCF,
+          ...(patch.metadata?.custom_fields || {}),
+          scoring_version: scoring.score_version,
+          scoring_factors: scoring.factors,
         };
       } catch (err) {
         console.warn('[leads.update] scoring recalculation failed:', err?.message || err);
       }
     }
-    if (patch.metadata && !scoringRecalc) {
-      updates['metadata'] = { ...(data.metadata || {}), ...patch.metadata, updated_at: now };
-    }
+    
+    // Set final updates
+    updates['metadata'] = newMetadata;
     if (patch.contact || scoringRecalc) {
       // Set the entire contact object to maintain proper nested structure
       updates['contact'] = newContact;
